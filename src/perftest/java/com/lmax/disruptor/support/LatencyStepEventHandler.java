@@ -15,30 +15,32 @@
  */
 package com.lmax.disruptor.support;
 
-import com.lmax.disruptor.EventHandler;
-import com.lmax.disruptor.collections.Histogram;
-
 import java.util.concurrent.CountDownLatch;
+
+
+import com.lmax.disruptor.EventHandler;
 
 public final class LatencyStepEventHandler implements EventHandler<ValueEvent>
 {
     private final FunctionStep functionStep;
-    private final Histogram histogram;
-    private final long nanoTimeCost;
     private long count;
     private CountDownLatch latch;
+    private long value;
 
-    public LatencyStepEventHandler(final FunctionStep functionStep, final Histogram histogram, final long nanoTimeCost)
+    public LatencyStepEventHandler(final FunctionStep functionStep)
     {
         this.functionStep = functionStep;
-        this.histogram = histogram;
-        this.nanoTimeCost = nanoTimeCost;
     }
 
     public void reset(final CountDownLatch latch, final long expectedCount)
     {
         this.latch = latch;
         count = expectedCount;
+    }
+
+    public long getValue()
+    {
+        return value;
     }
 
     @Override
@@ -51,14 +53,9 @@ public final class LatencyStepEventHandler implements EventHandler<ValueEvent>
                 break;
 
             case THREE:
-                // each value is a timestamp of when it was put on the ring
-                // calculate how long it took for the value to get to the end
-                long duration = System.nanoTime() - event.getValue();
-                // approximate time for a single processor
-                duration /= 3;
-                // adjust for nanoTime() calls
-                duration -= nanoTimeCost;
-                histogram.addObservation(duration);
+
+            value = event.getValue();
+
                 break;
         }
 

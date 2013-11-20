@@ -18,11 +18,13 @@ apply plugin: 'osgi'
 apply plugin: 'maven'
 apply plugin: 'signing'
 apply plugin: 'eclipse'   // Only used so the Eclipse STS Gradle plugin can see the 'perf' source set dependencies. :-(
+apply plugin: 'checkstyle'
+apply plugin: 'idea'
 
 defaultTasks 'build'
 
 group = 'com.lmax'
-version = new Version(major: 3, stage: 'beta4')
+version = new Version(major: 3, minor: 2, revision: 0)
 
 ext {
     fullName = 'Disruptor Framework'
@@ -33,6 +35,7 @@ ext {
 
     javaCompilerExecutable = System.env['JAVA_HOME'] ? System.env['JAVA_HOME'] + '/bin/javac' : 'javac'
 
+    if (!project.hasProperty('sonatypeUrl')) sonatypeUrl = 'https://oss.sonatype.org/service/local/staging/deploy/maven2'
     if (!project.hasProperty('sonatypeUsername')) sonatypeUsername = ''
     if (!project.hasProperty('sonatypePassword')) sonatypePassword = ''
 }
@@ -43,13 +46,17 @@ sourceSets {
 
 eclipse.classpath.plusConfigurations += sourceSets.perf.compileClasspath
 
+idea.module {
+    testSourceDirs += sourceSets.perf.allSource.getSrcDirs()
+}
+
 repositories {
     mavenCentral()
 }
 
 dependencies {
-    testCompile 'junit:junit:4.5', 'org.jmock:jmock-junit4:2.5.1', 'org.jmock:jmock-legacy:2.5.1'
-    perfCompile 'com.google.caliper:caliper:0.5-rc1', 'junit:junit:4.5'
+    testCompile 'junit:junit:4.5', 'org.jmock:jmock-junit4:2.5.1', 'org.jmock:jmock-legacy:2.5.1', files('lib/test/hdrhistogram-1.0-SNAPSHOT.jar')
+    perfCompile 'com.google.caliper:caliper:0.5-rc1', 'junit:junit:4.5', files('lib/test/hdrhistogram-1.0-SNAPSHOT.jar')
 }
 
 sourceCompatibility = 1.6
@@ -61,6 +68,10 @@ tasks.withType(Compile) {
     options.fork = true
     options.forkOptions.executable = javaCompilerExecutable
     options.warnings = false
+}
+
+tasks.withType(Test) {
+    maxParallelForks = Runtime.runtime.availableProcessors() / 2
 }
 
 compilePerfJava {
@@ -149,12 +160,6 @@ def projectPom = {
     }
 }
 
-task writePom << {
-    pom { 
-//        project(projectPom)
-    }.writeTo("pom.xml")
-}
-
 install {
     repositories.mavenInstaller.pom.project(projectPom)
 }
@@ -168,7 +173,7 @@ uploadArchives {
     repositories.mavenDeployer {
         beforeDeployment { deployment -> signing.signPom(deployment) }
 
-        repository(url: 'https://oss.sonatype.org/service/local/staging/deploy/maven2') {
+        repository(url: sonatypeUrl) {
             authentication(userName: sonatypeUsername, password: sonatypePassword)
         }
 
@@ -187,11 +192,16 @@ task tempLibs(type: Sync) {
     into('templib')
 }
 
+task wrapper(type: Wrapper) {
+    gradleVersion = '1.5'
+}
+
 class Version {
     int major, minor = 0, revision = 0
+    boolean snapshot
     String stage
-    
+
     String toString() {
-        "$major.$minor.$revision${stage ? '.' + stage : ''}"
+        "$major.$minor.$revision${stage ? '.' + stage : ''}${snapshot ? '-SNAPSHOT' : ''}"
     }
 }

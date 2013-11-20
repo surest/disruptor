@@ -6,25 +6,65 @@ A High Performance Inter-Thread Messaging Library
 Maintainer
 ==========
 
-[Michael Barker] (https://github.com/mikeb01)
+[Michael Barker](https://github.com/mikeb01)
 
 Changelog
 ==========
 
-## 3.0.0.beta3 Released (20-Feb-2013)
+### 3.2.0 Released (13-Aug-2013)
+
+- Fix performance bug in WorkProcessor with MultiProducerSequencer
+- Add EventRelease support to WorkProcessor (experimental)
+- Add PingPongLatencyTest
+- Switch to HdrHistogram for latency measurement
+
+### 3.1.1 Released (9-Jul-2013)
+
+- Fix bug in WorkProcessor where consumers could get ahead of publishers
+
+### 3.1.0 Released (17-Jun-2013)
+
+- Fix bug in Disruptor DSL where some consumers wouldn't be included in the gating sequences.
+- Add support for using the EventTranslator with batch publication.
+- Support timeouts when shutting down the Disruptor using the DSL.
+
+### 3.0.1 Released (16-Apr-2013)
+
+- Remove Sequencer.ensureAvailable() and move functionality into the ProcessingSequenceBarrier.
+- Add get() method and deprecate getPublished() and getPreallocated() from the RingBuffer.
+- Add TimeoutException to SequenceBarrier.waitFor().
+- Fix off by one bug in MultiProducerSequencer.publish(lo, hi).
+- Improve testing for Sequencers.
+
+## 3.0.0 Released (10-Apr-2013)
+
+- Add remaining capacity to RingBuffer
+- Add batch publish methods to Sequencer
+- Add DataProvider interface to decouple the RingBuffer and BatchEventProcessor
+- Upgrade to gradle 1.5
+
+### 3.0.0.beta5 Released (08-Apr-2013)
+
+- Make Sequencer public
+
+### 3.0.0.beta4 Released (08-Apr-2013)
+
+- Refactoring, merge Publisher back into Sequencer and some of the gating sequence repsonsibilities up to the sequencer.
+
+### 3.0.0.beta3 Released (20-Feb-2013)
 
 - Significant Javadoc updates (thanks Jason Koch)
 - DSL support for WorkerPool
 - Small performance tweaks
 - Add TimeoutHandler and TimeoutBlockingWaitStrategy and support timeouts in BatchEventProcessor
 
-## 3.0.0.beta2 Released (7-Jan-2013)
+### 3.0.0.beta2 Released (7-Jan-2013)
 
 - Remove millisecond wakeup from BlockingWaitStrategy
 - Add RingBuffer.claimAndGetPreallocated
 - Add RingBuffer.isPublished
 
-## 3.0.0.beta1 Released (3-Jan-2013)
+### 3.0.0.beta1 Released (3-Jan-2013)
 
 - Remove claim strategies and replace with Publishers/Sequences, remove pluggability of claim strategies.
 - Introduce new multi-producer publisher algorithm (faster and more scalable).

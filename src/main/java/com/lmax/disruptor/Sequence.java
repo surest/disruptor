@@ -23,22 +23,22 @@ import sun.misc.Unsafe;
  * <p>Concurrent sequence class used for tracking the progress of
  * the ring buffer and event processors.  Support a number
  * of concurrent operations including CAS and order writes.
- * 
+ *
  * <p>Also attempts to be more efficient with regards to false
  * sharing by adding padding around the volatile field.
  */
 public class Sequence
 {
     static final long INITIAL_VALUE = -1L;
-    private static final Unsafe unsafe;
-    private static final long valueOffset;
+    private static final Unsafe UNSAFE;
+    private static final long VALUE_OFFSET;
 
     static
     {
-        unsafe = Util.getUnsafe();
-        final int base = unsafe.arrayBaseOffset(long[].class);
-        final int scale = unsafe.arrayIndexScale(long[].class);
-        valueOffset = base + (scale * 7);
+        UNSAFE = Util.getUnsafe();
+        final int base = UNSAFE.arrayBaseOffset(long[].class);
+        final int scale = UNSAFE.arrayIndexScale(long[].class);
+        VALUE_OFFSET = base + (scale * 7);
     }
 
     private final long[] paddedValue = new long[15];
@@ -53,34 +53,34 @@ public class Sequence
 
     /**
      * Create a sequence with a specified initial value.
-     * 
+     *
      * @param initialValue The initial value for this sequence.
      */
     public Sequence(final long initialValue)
     {
-        unsafe.putOrderedLong(paddedValue, valueOffset, initialValue);
+        UNSAFE.putOrderedLong(paddedValue, VALUE_OFFSET, initialValue);
     }
 
     /**
      * Perform a volatile read of this sequence's value.
-     * 
+     *
      * @return The current value of the sequence.
      */
     public long get()
     {
-        return unsafe.getLongVolatile(paddedValue, valueOffset);
+        return UNSAFE.getLongVolatile(paddedValue, VALUE_OFFSET);
     }
 
     /**
      * Perform an ordered write of this sequence.  The intent is
      * a Store/Store barrier between this write and any previous
      * store.
-     * 
+     *
      * @param value The new value for the sequence.
      */
     public void set(final long value)
     {
-        unsafe.putOrderedLong(paddedValue, valueOffset, value);
+        UNSAFE.putOrderedLong(paddedValue, VALUE_OFFSET, value);
     }
 
     /**
@@ -88,29 +88,29 @@ public class Sequence
      * a Store/Store barrier between this write and any previous
      * write and a Store/Load barrier between this write and any
      * subsequent volatile read.
-     * 
+     *
      * @param value The new value for the sequence.
      */
     public void setVolatile(final long value)
     {
-        unsafe.putLongVolatile(paddedValue, valueOffset, value);
+        UNSAFE.putLongVolatile(paddedValue, VALUE_OFFSET, value);
     }
 
     /**
      * Perform a compare and set operation on the sequence.
-     * 
+     *
      * @param expectedValue The expected current value.
      * @param newValue The value to update to.
      * @return true if the operation succeeds, false otherwise.
      */
     public boolean compareAndSet(final long expectedValue, final long newValue)
     {
-        return unsafe.compareAndSwapLong(paddedValue, valueOffset, expectedValue, newValue);
+        return UNSAFE.compareAndSwapLong(paddedValue, VALUE_OFFSET, expectedValue, newValue);
     }
 
     /**
      * Atomically increment the sequence by one.
-     * 
+     *
      * @return The value after the increment
      */
     public long incrementAndGet()
@@ -120,7 +120,7 @@ public class Sequence
 
     /**
      * Atomically add the supplied value.
-     * 
+     *
      * @param increment The value to add to the sequence.
      * @return The value after the increment.
      */

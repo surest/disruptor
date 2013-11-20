@@ -29,7 +29,7 @@ public final class OnePublisherToThreeWorkerPoolThroughputTest
     private static final int NUM_WORKERS = 3;
     private static final int BUFFER_SIZE = 1024 * 8;
     private static final long ITERATIONS = 1000L * 1000L * 100L;
-    private final ExecutorService EXECUTOR = Executors.newFixedThreadPool(NUM_WORKERS);
+    private final ExecutorService executor = Executors.newFixedThreadPool(NUM_WORKERS);
 
     private final PaddedLong[] counters = new PaddedLong[NUM_WORKERS];
     {
@@ -60,16 +60,19 @@ public final class OnePublisherToThreeWorkerPoolThroughputTest
         }
     }
 
-    private final RingBuffer<ValueEvent> ringBuffer = 
-            RingBuffer.createSingleProducer(ValueEvent.EVENT_FACTORY, 
+    private final RingBuffer<ValueEvent> ringBuffer =
+            RingBuffer.createSingleProducer(ValueEvent.EVENT_FACTORY,
                                             BUFFER_SIZE,
                                             new YieldingWaitStrategy());
-    
-    private final WorkerPool<ValueEvent> workerPool = 
+
+    private final WorkerPool<ValueEvent> workerPool =
             new WorkerPool<ValueEvent>(ringBuffer,
                                        ringBuffer.newBarrier(),
                                        new FatalExceptionHandler(),
                                        handlers);
+    {
+        ringBuffer.addGatingSequences(workerPool.getWorkerSequences());
+    }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -93,7 +96,7 @@ public final class OnePublisherToThreeWorkerPoolThroughputTest
         Future<?>[] futures = new Future[NUM_WORKERS];
         for (int i = 0; i < NUM_WORKERS; i++)
         {
-            futures[i] = EXECUTOR.submit(queueWorkers[i]);
+            futures[i] = executor.submit(queueWorkers[i]);
         }
 
         long start = System.currentTimeMillis();
@@ -126,13 +129,13 @@ public final class OnePublisherToThreeWorkerPoolThroughputTest
     {
 
         resetCounters();
-        RingBuffer<ValueEvent> ringBuffer = workerPool.start(EXECUTOR);
+        RingBuffer<ValueEvent> ringBuffer = workerPool.start(executor);
         long start = System.currentTimeMillis();
 
         for (long i = 0; i < ITERATIONS; i++)
         {
             long sequence = ringBuffer.next();
-            ringBuffer.getPreallocated(sequence).setValue(i);
+            ringBuffer.get(sequence).setValue(i);
             ringBuffer.publish(sequence);
         }
 

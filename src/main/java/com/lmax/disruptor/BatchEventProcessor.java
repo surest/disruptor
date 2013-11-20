@@ -32,7 +32,7 @@ public final class BatchEventProcessor<T>
 {
     private final AtomicBoolean running = new AtomicBoolean(false);
     private ExceptionHandler exceptionHandler = new FatalExceptionHandler();
-    private final RingBuffer<T> ringBuffer;
+    private final DataProvider<T> dataProvider;
     private final SequenceBarrier sequenceBarrier;
     private final EventHandler<T> eventHandler;
     private final Sequence sequence = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
@@ -42,15 +42,15 @@ public final class BatchEventProcessor<T>
      * Construct a {@link EventProcessor} that will automatically track the progress by updating its sequence when
      * the {@link EventHandler#onEvent(Object, long, boolean)} method returns.
      *
-     * @param ringBuffer to which events are published.
+     * @param dataProvider to which events are published.
      * @param sequenceBarrier on which it is waiting.
      * @param eventHandler is the delegate to which events are dispatched.
      */
-    public BatchEventProcessor(final RingBuffer<T> ringBuffer,
+    public BatchEventProcessor(final DataProvider<T> dataProvider,
                                final SequenceBarrier sequenceBarrier,
                                final EventHandler<T> eventHandler)
     {
-        this.ringBuffer = ringBuffer;
+        this.dataProvider = dataProvider;
         this.sequenceBarrier = sequenceBarrier;
         this.eventHandler = eventHandler;
 
@@ -58,7 +58,7 @@ public final class BatchEventProcessor<T>
         {
             ((SequenceReportingEventHandler<?>)eventHandler).setSequenceCallback(sequence);
         }
-        
+
         timeoutHandler = (eventHandler instanceof TimeoutHandler) ? (TimeoutHandler) eventHandler : null;
     }
 
@@ -73,6 +73,12 @@ public final class BatchEventProcessor<T>
     {
         running.set(false);
         sequenceBarrier.alert();
+    }
+
+    @Override
+    public boolean isRunning()
+    {
+        return running.get();
     }
 
     /**
@@ -92,7 +98,7 @@ public final class BatchEventProcessor<T>
 
     /**
      * It is ok to have another thread rerun this method after a halt().
-     * 
+     *
      * @throws IllegalStateException if this object instance is already running in a thread
      */
     @Override
@@ -108,52 +114,62 @@ public final class BatchEventProcessor<T>
 
         T event = null;
         long nextSequence = sequence.get() + 1L;
-        while (true)
+        try
         {
-            try
+            while (true)
             {
-                final long availableSequence = sequenceBarrier.waitFor(nextSequence);
-                
-                if (availableSequence < nextSequence && timeoutHandler != null)
+                try
                 {
-                    notifyTimeout(availableSequence);
-                    continue;
+                    final long availableSequence = sequenceBarrier.waitFor(nextSequence);
+
+                    if (nextSequence > availableSequence)
+                    {
+                        Thread.yield();
+                    }
+
+                    while (nextSequence <= availableSequence)
+                    {
+                        event = dataProvider.get(nextSequence);
+                        eventHandler.onEvent(event, nextSequence, nextSequence == availableSequence);
+                        nextSequence++;
+                    }
+
+                    sequence.set(availableSequence);
                 }
-                
-                while (nextSequence <= availableSequence)
+                catch (final TimeoutException e)
                 {
-                    event = ringBuffer.getPublished(nextSequence);
-                    eventHandler.onEvent(event, nextSequence, nextSequence == availableSequence);
+                    notifyTimeout(sequence.get());
+                }
+                catch (final AlertException ex)
+                {
+                    if (!running.get())
+                    {
+                        break;
+                    }
+                }
+                catch (final Throwable ex)
+                {
+                    exceptionHandler.handleEventException(ex, nextSequence, event);
+                    sequence.set(nextSequence);
                     nextSequence++;
                 }
-
-                sequence.set(availableSequence);
-            }
-            catch (final AlertException ex)
-            {
-               if (!running.get())
-               {
-                   break;
-               }
-            }
-            catch (final Throwable ex)
-            {
-                exceptionHandler.handleEventException(ex, nextSequence, event);
-                sequence.set(nextSequence);
-                nextSequence++;
             }
         }
-
-        notifyShutdown();
-
-        running.set(false);
+        finally
+        {
+            notifyShutdown();
+            running.set(false);
+        }
     }
 
-    private void notifyTimeout(final long availableSequence) throws Exception
+    private void notifyTimeout(final long availableSequence)
     {
         try
         {
-            timeoutHandler.onTimeout(availableSequence);
+            if (timeoutHandler != null)
+            {
+                timeoutHandler.onTimeout(availableSequence);
+            }
         }
         catch (Throwable e)
         {

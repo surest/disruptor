@@ -55,8 +55,14 @@ public class ConsumerRepositoryTest
                 allowing(eventProcessor1).getSequence();
                 will(returnValue(sequence1));
 
+                allowing(eventProcessor1).isRunning();
+                will(returnValue(true));
+
                 allowing(eventProcessor2).getSequence();
                 will(returnValue(sequence2));
+
+                allowing(eventProcessor2).isRunning();
+                will(returnValue(true));
             }
         });
         handler1 = new SleepingEventHandler();
@@ -89,7 +95,7 @@ public class ConsumerRepositoryTest
         consumerRepository.unMarkEventProcessorsAsEndOfChain(eventProcessor2.getSequence());
 
 
-        final Sequence[] lastEventProcessorsInChain = consumerRepository.getLastSequenceInChain();
+        final Sequence[] lastEventProcessorsInChain = consumerRepository.getLastSequenceInChain(true);
         assertThat(lastEventProcessorsInChain.length, equalTo(1));
         assertThat(lastEventProcessorsInChain[0], sameInstance(eventProcessor1.getSequence()));
     }

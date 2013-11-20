@@ -34,8 +34,8 @@ import com.lmax.disruptor.support.ValuePublisher;
  *
  * +----+                  +-----+
  * | P1 |---+          +-->| WP1 |
- * +----+   |  +-----+ |   +-----+ 
- *          +->| RB1 |-+         
+ * +----+   |  +-----+ |   +-----+
+ *          +->| RB1 |-+
  * +----+   |  +-----+ |   +-----+
  * | P2 |---+          +-->| WP2 |
  * +----+                  +-----+
@@ -52,7 +52,7 @@ public final class TwoPublisherToTwoProcessorWorkProcessorThroughputTest extends
     private static final int NUM_PUBLISHERS = 2;
     private static final int BUFFER_SIZE = 1024 * 64;
     private static final long ITERATIONS = 1000L * 1000L * 1L;
-    private final ExecutorService EXECUTOR = Executors.newFixedThreadPool(NUM_PUBLISHERS + 2);
+    private final ExecutorService executor = Executors.newFixedThreadPool(NUM_PUBLISHERS + 2);
     private final CyclicBarrier cyclicBarrier = new CyclicBarrier(NUM_PUBLISHERS + 1);
 
     ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -62,24 +62,24 @@ public final class TwoPublisherToTwoProcessorWorkProcessorThroughputTest extends
 
     private final SequenceBarrier sequenceBarrier = ringBuffer.newBarrier();
     private final Sequence workSequence = new Sequence(-1);
-    
-    private ValueAdditionWorkHandler[] handlers = new ValueAdditionWorkHandler[2];
+
+    private final ValueAdditionWorkHandler[] handlers = new ValueAdditionWorkHandler[2];
     {
         handlers[0] = new ValueAdditionWorkHandler();
         handlers[1] = new ValueAdditionWorkHandler();
     }
-    
+
     @SuppressWarnings("unchecked")
-    private WorkProcessor<ValueEvent>[] workProcessors = new WorkProcessor[2];
+    private final WorkProcessor<ValueEvent>[] workProcessors = new WorkProcessor[2];
     {
-       workProcessors[0] = new WorkProcessor<ValueEvent>(ringBuffer, sequenceBarrier, 
-                                                        handlers[0], new IgnoreExceptionHandler(), 
+       workProcessors[0] = new WorkProcessor<ValueEvent>(ringBuffer, sequenceBarrier,
+                                                        handlers[0], new IgnoreExceptionHandler(),
                                                         workSequence);
-       workProcessors[1] = new WorkProcessor<ValueEvent>(ringBuffer, sequenceBarrier, 
-                                                        handlers[1], new IgnoreExceptionHandler(), 
+       workProcessors[1] = new WorkProcessor<ValueEvent>(ringBuffer, sequenceBarrier,
+                                                        handlers[1], new IgnoreExceptionHandler(),
                                                         workSequence);
     };
-    
+
     private final ValuePublisher[] valuePublishers = new ValuePublisher[NUM_PUBLISHERS];
     {
         for (int i = 0; i < NUM_PUBLISHERS; i++)
@@ -118,12 +118,12 @@ public final class TwoPublisherToTwoProcessorWorkProcessorThroughputTest extends
         Future<?>[] futures = new Future[NUM_PUBLISHERS];
         for (int i = 0; i < NUM_PUBLISHERS; i++)
         {
-            futures[i] = EXECUTOR.submit(valuePublishers[i]);
+            futures[i] = executor.submit(valuePublishers[i]);
         }
-        
+
         for (WorkProcessor<ValueEvent> processor : workProcessors)
-        {            
-            EXECUTOR.submit(processor);
+        {
+            executor.submit(processor);
         }
 
         long start = System.currentTimeMillis();
@@ -138,16 +138,16 @@ public final class TwoPublisherToTwoProcessorWorkProcessorThroughputTest extends
         {
             LockSupport.parkNanos(1L);
         }
-        
+
         long opsPerSecond = (ITERATIONS * 1000L) / (System.currentTimeMillis() - start);
-        
+
         Thread.sleep(1000);
-        
+
         for (WorkProcessor<ValueEvent> processor : workProcessors)
-        {            
+        {
             processor.halt();
         }
 
         return opsPerSecond;
-    }    
+    }
 }
